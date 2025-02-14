@@ -1,0 +1,106 @@
+service: work-orders-dynamodb-streams
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: python3.11
+  stage: dev
+  region: us-east-1
+  environment:
+    DYNAMODB_TABLE: WorkOrdersTable
+    SQS_RECEIVED: { "Ref": "ReceivedQueue" }
+    SQS_IN_PROGRESS: { "Ref": "InProgressQueue" }
+    SQS_COMPLETED: { "Ref": "CompletedQueue" }
+    SQS_CANCELED: { "Ref": "CanceledQueue" }
+
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:PutItem
+        - dynamodb:Scan
+        - dynamodb:GetItem
+      Resource: 
+        - arn:aws:dynamodb:us-east-1:*:table/WorkOrdersTable
+    - Effect: Allow
+      Action:
+        - dynamodb:DescribeStream
+        - dynamodb:GetRecords
+        - dynamodb:GetShardIterator
+        - dynamodb:ListStreams
+      Resource: 
+        - arn:aws:dynamodb:us-east-1:*:table/WorkOrdersTable/stream/*
+    - Effect: Allow
+      Action:
+        - sqs:SendMessage
+      Resource: 
+        - arn:aws:sqs:us-east-1:*:work-orders-received.fifo
+        - arn:aws:sqs:us-east-1:*:work-orders-in-progress.fifo
+        - arn:aws:sqs:us-east-1:*:work-orders-completed.fifo
+        - arn:aws:sqs:us-east-1:*:work-orders-canceled.fifo
+
+functions:
+  api:
+    handler: src/api_handler.lambda_handler
+    memorySize: 128
+    timeout: 29
+    events:
+      - http:
+          path: work-orders
+          method: post
+      - http:
+          path: work-orders
+          method: get
+
+  streamProcessor:
+    handler: src/stream_handler.lambda_handler
+    memorySize: 128
+    timeout: 15
+    events:
+      - stream:
+          type: dynamodb
+          arn:
+            Fn::GetAtt:
+              - WorkOrdersTable
+              - StreamArn
+          batchSize: 10
+          startingPosition: LATEST
+
+resources:
+  Resources:
+    WorkOrdersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: WorkOrdersTable
+        BillingMode: PAY_PER_REQUEST
+        StreamSpecification:
+          StreamViewType: NEW_IMAGE
+        AttributeDefinitions:
+          - AttributeName: "id"
+            AttributeType: "S"
+        KeySchema:
+          - AttributeName: "id"
+            KeyType: "HASH"
+
+    ReceivedQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: work-orders-received.fifo
+        FifoQueue: true
+
+    InProgressQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: work-orders-in-progress.fifo
+        FifoQueue: true
+
+    CompletedQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: work-orders-completed.fifo
+        FifoQueue: true
+
+    CanceledQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: work-orders-canceled.fifo
+        FifoQueue: true
