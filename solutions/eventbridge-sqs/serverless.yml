@@ -1,0 +1,205 @@
+service: work-orders-eventbridge
+frameworkVersion: '3'
+
+provider:
+  name: aws
+  runtime: python3.11
+  stage: dev
+  region: us-east-1
+  environment:
+    DYNAMODB_TABLE: WorkOrdersTable
+    EVENT_BUS_NAME: WorkOrdersEventBus
+    SQS_RECEIVED: { "Ref": "ReceivedQueue" }
+    SQS_IN_PROGRESS: { "Ref": "InProgressQueue" }
+    SQS_COMPLETED: { "Ref": "CompletedQueue" }
+    SQS_CANCELED: { "Ref": "CanceledQueue" }
+
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - events:PutEvents
+      Resource: 
+        - arn:aws:events:us-east-1:*:event-bus/WorkOrdersEventBus
+    - Effect: Allow
+      Action:
+        - sqs:SendMessage
+      Resource:
+        - arn:aws:sqs:us-east-1:*:work-orders-received
+        - arn:aws:sqs:us-east-1:*:work-orders-in-progress
+        - arn:aws:sqs:us-east-1:*:work-orders-completed
+        - arn:aws:sqs:us-east-1:*:work-orders-canceled
+    - Effect: Allow
+      Action:
+        - dynamodb:PutItem
+        - dynamodb:Scan
+        - dynamodb:GetItem
+      Resource: 
+        - arn:aws:dynamodb:us-east-1:*:table/WorkOrdersTable
+
+functions:
+  api:
+    handler: src/api_handler.lambda_handler
+    memorySize: 128
+    timeout: 29
+    events:
+      - http:
+          path: work-orders
+          method: post
+      - http:
+          path: work-orders
+          method: get
+
+resources:
+  Resources:
+    WorkOrdersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: WorkOrdersTable
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: "id"
+            AttributeType: "S"
+        KeySchema:
+          - AttributeName: "id"
+            KeyType: "HASH"
+
+    WorkOrdersEventBus:
+      Type: AWS::Events::EventBus
+      Properties:
+        Name: WorkOrdersEventBus
+
+    ReceivedQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: work-orders-received
+
+    InProgressQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: work-orders-in-progress
+
+    CompletedQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: work-orders-completed
+
+    CanceledQueue:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: work-orders-canceled
+
+    ReceivedQueuePolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        Queues:
+          - !Ref ReceivedQueue
+        PolicyDocument:
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: events.amazonaws.com
+              Action: sqs:SendMessage
+              Resource: !GetAtt ReceivedQueue.Arn
+
+    InProgressQueuePolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        Queues:
+          - !Ref InProgressQueue
+        PolicyDocument:
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: events.amazonaws.com
+              Action: sqs:SendMessage
+              Resource: !GetAtt InProgressQueue.Arn
+
+    CompletedQueuePolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        Queues:
+          - !Ref CompletedQueue
+        PolicyDocument:
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: events.amazonaws.com
+              Action: sqs:SendMessage
+              Resource: !GetAtt CompletedQueue.Arn
+
+    CanceledQueuePolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        Queues:
+          - !Ref CanceledQueue
+        PolicyDocument:
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: events.amazonaws.com
+              Action: sqs:SendMessage
+              Resource: !GetAtt CanceledQueue.Arn
+
+    WorkOrdersReceivedRule:
+      Type: AWS::Events::Rule
+      Properties:
+        EventBusName: !Ref WorkOrdersEventBus
+        EventPattern:
+          source:
+            - "work-orders"
+          detail-type:
+            - "WorkOrderCreated"
+          detail:
+            status:
+              - "received"
+        Targets:
+          - Arn: !GetAtt ReceivedQueue.Arn
+            Id: "ReceivedQueueTarget"
+
+    WorkOrdersInProgressRule:
+      Type: AWS::Events::Rule
+      Properties:
+        EventBusName: !Ref WorkOrdersEventBus
+        EventPattern:
+          source:
+            - "work-orders"
+          detail-type:
+            - "WorkOrderCreated"
+          detail:
+            status:
+              - "in_progress"
+        Targets:
+          - Arn: !GetAtt InProgressQueue.Arn
+            Id: "InProgressQueueTarget"
+
+    WorkOrdersCompletedRule:
+      Type: AWS::Events::Rule
+      Properties:
+        EventBusName: !Ref WorkOrdersEventBus
+        EventPattern:
+          source:
+            - "work-orders"
+          detail-type:
+            - "WorkOrderCreated"
+          detail:
+            status:
+              - "completed"
+        Targets:
+          - Arn: !GetAtt CompletedQueue.Arn
+            Id: "CompletedQueueTarget"
+
+    WorkOrdersCanceledRule:
+      Type: AWS::Events::Rule
+      Properties:
+        EventBusName: !Ref WorkOrdersEventBus
+        EventPattern:
+          source:
+            - "work-orders"
+          detail-type:
+            - "WorkOrderCreated"
+          detail:
+            status:
+              - "canceled"
+        Targets:
+          - Arn: !GetAtt CanceledQueue.Arn
+            Id: "CanceledQueueTarget"
