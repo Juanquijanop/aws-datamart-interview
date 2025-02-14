@@ -57,7 +57,96 @@ source venv/bin/activate   # En Linux/MacOS
 
 pip install pytest moto boto3
 
-python -m unittest discover -s solutions/<solution>/tests
+python -m unittest discover -s solutions/solution_to_test/tests
+
+## 🛠️ Testing the API
+### 🚀 Create Work Orders (POST)
+#### Valid Request (Received)
+
+```sh
+curl -X POST "https://<API_GATEWAY_OUTPUT_DOMAIN>/dev/work-orders" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "description": "Screen repair for iPhone 13",
+           "deliveryDate": "2025-02-20T12:00:00Z",
+           "status": "received"
+         }'
+
+```
+
+#### Valid Request (In Progress)
+
+```sh
+curl -X POST "https://<API_GATEWAY_OUTPUT_DOMAIN>/dev/work-orders" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "description": "Battery replacement for MacBook Pro",
+           "deliveryDate": "2025-02-22T15:00:00Z",
+           "status": "in_progress"
+         }'
+```
+
+#### Valid Request (Completed)
+```sh
+curl -X POST "https://<API_GATEWAY_OUTPUT_DOMAIN>/dev/work-orders" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "description": "Software installation",
+           "deliveryDate": "2025-02-18T10:30:00Z",
+           "status": "completed"
+         }'
+```
+
+
+#### Valid Request (Canceled)
+```sh
+curl -X POST "https://<API_GATEWAY_OUTPUT_DOMAIN>/dev/work-orders" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "description": "Fix overheating issue",
+           "deliveryDate": "2025-02-25T09:00:00Z",
+           "status": "canceled",
+           "cancellationReason": "Customer requested cancellation"
+         }'
+```
+
+### Testing Validation(POST)
+
+#### Invalid Request (Missing Required Fields)
+```sh
+curl -X POST "https://<API_GATEWAY_OUTPUT_DOMAIN>/dev/work-orders" \
+     -H "Content-Type: application/json" \
+     -d '{}'
+```
+
+Expected response
+
+{
+  "message": "Missing required fields."
+}
+
+#### Invalid Request (Canceled without a reason)
+```sh
+curl -X POST "https://<API_GATEWAY_OUTPUT_DOMAIN>/dev/work-orders" \
+     -H "Content-Type: application/json" \
+     -d '{
+           "description": "Fix overheating issue",
+           "deliveryDate": "2025-02-25T09:00:00Z",
+           "status": "canceled"
+         }'
+```
+
+Expected response
+
+{
+  "message": "Cancellation reason is required when status is 'canceled'."
+}
+
+### 🚀 Get Work Orders (GET)
+
+```sh
+curl -X GET "https://<API_GATEWAY_OUTPUT_DOMAIN>/dev/work-orders"
+```
 
 ## Opinion y Experiencia Personal
 
