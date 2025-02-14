@@ -1,0 +1,19 @@
+{
+  "name": "aws-datamart-interview",
+  "version": "1.0.0",
+  "description": "Serverless project for processing work orders in AWS using different architectures: Direct-to-SQS, DynamoDB Streams, SNS Filtering, and EventBridge + SQS.",
+  "author": "Juan Manuel Quijano",
+  "license": "MIT",
+  "scripts": {
+    "deploy:direct-to-sqs": "cd solutions/direct-to-sqs && serverless deploy",
+    "deploy:dynamo-streams": "cd solutions/dynamo-streams && serverless deploy",
+    "deploy:eventbridge-sqs": "cd solutions/eventbridge-sqs && serverless deploy",
+    "deploy:sns-filtering": "cd solutions/sns-filtering && serverless deploy",
+    "deploy:all": "npm run deploy:direct-to-sqs && npm run deploy:dynamo-streams && npm run deploy:eventbridge-sqs && npm run deploy:sns-filtering",
+    "remove:all": "serverless remove --stage dev"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "serverless": "^3.38.0"
+  }
+}
